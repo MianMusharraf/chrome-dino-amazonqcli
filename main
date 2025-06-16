@@ -1,0 +1,623 @@
+import pygame
+import random
+import sys
+import os
+import math
+
+# Initialize pygame
+pygame.init()
+pygame.mixer.init()  # Initialize sound mixer
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 300
+GROUND_HEIGHT = 250
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (83, 83, 83)
+DARK_GRAY = (50, 50, 50)
+RED = (255, 0, 0)
+GOLD = (255, 215, 0)
+GRAVITY = 1
+JUMP_FORCE = 15
+INITIAL_GAME_SPEED = 5
+
+# Create the screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Dino Game")
+clock = pygame.time.Clock()
+
+# Create assets directory if it doesn't exist
+assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+os.makedirs(assets_dir, exist_ok=True)
+
+# Create simple sprite images
+def create_dino_images():
+    # Create running frames
+    dino_run1 = pygame.Surface((44, 47), pygame.SRCALPHA)
+    pygame.draw.rect(dino_run1, BLACK, (0, 0, 35, 40))  # body
+    pygame.draw.rect(dino_run1, BLACK, (35, 15, 9, 10))  # head
+    pygame.draw.rect(dino_run1, BLACK, (15, 40, 10, 7))  # leg1
+    pygame.draw.rect(dino_run1, WHITE, (38, 17, 3, 3))  # eye
+
+    dino_run2 = pygame.Surface((44, 47), pygame.SRCALPHA)
+    pygame.draw.rect(dino_run2, BLACK, (0, 0, 35, 40))  # body
+    pygame.draw.rect(dino_run2, BLACK, (35, 15, 9, 10))  # head
+    pygame.draw.rect(dino_run2, BLACK, (25, 40, 10, 7))  # leg2
+    pygame.draw.rect(dino_run2, WHITE, (38, 17, 3, 3))  # eye
+
+    # Create ducking frames
+    dino_duck1 = pygame.Surface((55, 30), pygame.SRCALPHA)
+    pygame.draw.rect(dino_duck1, BLACK, (0, 0, 55, 20))  # body
+    pygame.draw.rect(dino_duck1, BLACK, (45, 5, 10, 10))  # head
+    pygame.draw.rect(dino_duck1, BLACK, (15, 20, 10, 10))  # leg1
+    pygame.draw.rect(dino_duck1, WHITE, (48, 7, 3, 3))  # eye
+
+    dino_duck2 = pygame.Surface((55, 30), pygame.SRCALPHA)
+    pygame.draw.rect(dino_duck2, BLACK, (0, 0, 55, 20))  # body
+    pygame.draw.rect(dino_duck2, BLACK, (45, 5, 10, 10))  # head
+    pygame.draw.rect(dino_duck2, BLACK, (35, 20, 10, 10))  # leg2
+    pygame.draw.rect(dino_duck2, WHITE, (48, 7, 3, 3))  # eye
+
+    # Create jump frame
+    dino_jump = pygame.Surface((44, 47), pygame.SRCALPHA)
+    pygame.draw.rect(dino_jump, BLACK, (0, 0, 35, 40))  # body
+    pygame.draw.rect(dino_jump, BLACK, (35, 15, 9, 10))  # head
+    pygame.draw.rect(dino_jump, BLACK, (20, 40, 10, 7))  # legs together
+    pygame.draw.rect(dino_jump, WHITE, (38, 17, 3, 3))  # eye
+
+    # Create dead frame
+    dino_dead = pygame.Surface((44, 47), pygame.SRCALPHA)
+    pygame.draw.rect(dino_dead, BLACK, (0, 0, 35, 40))  # body
+    pygame.draw.rect(dino_dead, BLACK, (35, 15, 9, 10))  # head
+    pygame.draw.rect(dino_dead, BLACK, (20, 40, 10, 7))  # legs
+    pygame.draw.line(dino_dead, WHITE, (38, 17), (42, 21), 2)  # X eye 1
+    pygame.draw.line(dino_dead, WHITE, (38, 21), (42, 17), 2)  # X eye 2
+
+    return [dino_run1, dino_run2], [dino_duck1, dino_duck2], dino_jump, dino_dead
+
+def create_cactus_images():
+    # Small cactus
+    small_cactus = pygame.Surface((20, 40), pygame.SRCALPHA)
+    pygame.draw.rect(small_cactus, BLACK, (5, 0, 10, 40))  # main body
+    pygame.draw.rect(small_cactus, BLACK, (0, 10, 5, 10))  # left arm
+    pygame.draw.rect(small_cactus, BLACK, (15, 20, 5, 10))  # right arm
+
+    # Large cactus
+    large_cactus = pygame.Surface((25, 50), pygame.SRCALPHA)
+    pygame.draw.rect(large_cactus, BLACK, (7, 0, 10, 50))  # main body
+    pygame.draw.rect(large_cactus, BLACK, (0, 15, 7, 10))  # left arm
+    pygame.draw.rect(large_cactus, BLACK, (17, 25, 8, 10))  # right arm
+
+    # Multiple cacti
+    multi_cactus = pygame.Surface((50, 40), pygame.SRCALPHA)
+    pygame.draw.rect(multi_cactus, BLACK, (5, 0, 10, 40))  # first cactus
+    pygame.draw.rect(multi_cactus, BLACK, (0, 10, 5, 10))  # first left arm
+    pygame.draw.rect(multi_cactus, BLACK, (25, 0, 10, 35))  # second cactus
+    pygame.draw.rect(multi_cactus, BLACK, (35, 15, 5, 10))  # second right arm
+
+    return [small_cactus, large_cactus, multi_cactus]
+
+def create_bird_images():
+    # Bird frame 1
+    bird1 = pygame.Surface((46, 40), pygame.SRCALPHA)
+    pygame.draw.ellipse(bird1, BLACK, (10, 10, 26, 20))  # body
+    pygame.draw.ellipse(bird1, BLACK, (30, 5, 16, 10))  # head
+    pygame.draw.polygon(bird1, BLACK, [(36, 8), (42, 8), (39, 12)])  # beak
+    pygame.draw.line(bird1, BLACK, (0, 15), (20, 15), 2)  # wing up
+
+    # Bird frame 2
+    bird2 = pygame.Surface((46, 40), pygame.SRCALPHA)
+    pygame.draw.ellipse(bird2, BLACK, (10, 10, 26, 20))  # body
+    pygame.draw.ellipse(bird2, BLACK, (30, 5, 16, 10))  # head
+    pygame.draw.polygon(bird2, BLACK, [(36, 8), (42, 8), (39, 12)])  # beak
+    pygame.draw.line(bird2, BLACK, (10, 25), (30, 25), 2)  # wing down
+
+    return [bird1, bird2]
+
+def create_cloud_image():
+    cloud = pygame.Surface((70, 40), pygame.SRCALPHA)
+    pygame.draw.ellipse(cloud, GRAY, (0, 10, 30, 20))
+    pygame.draw.ellipse(cloud, GRAY, (20, 5, 30, 25))
+    pygame.draw.ellipse(cloud, GRAY, (40, 10, 30, 20))
+    return cloud
+
+def create_ground_images():
+    ground1 = pygame.Surface((20, 10), pygame.SRCALPHA)
+    pygame.draw.line(ground1, BLACK, (5, 5), (15, 5), 2)
+
+    ground2 = pygame.Surface((20, 10), pygame.SRCALPHA)
+    pygame.draw.line(ground2, BLACK, (2, 5), (8, 5), 1)
+    pygame.draw.line(ground2, BLACK, (12, 5), (18, 5), 1)
+
+    return [ground1, ground2]
+
+def create_powerup_image():
+    powerup = pygame.Surface((30, 30), pygame.SRCALPHA)
+
+    # Draw a star
+    points = []
+    for i in range(10):
+        angle = math.pi * 2 * i / 10
+        radius = 15 if i % 2 == 0 else 7
+        points.append((15 + radius * math.sin(angle), 15 - radius * math.cos(angle)))
+
+    pygame.draw.polygon(powerup, GOLD, points)
+    return powerup
+
+# Create sound effects
+def create_sound_effects():
+    try:
+        # Jump sound
+        jump_sound_path = os.path.join(assets_dir, "jump.wav")
+        if not os.path.exists(jump_sound_path):
+            # Create a simple beep sound
+            sample_rate = 44100
+            duration = 0.2  # seconds
+            samples = int(duration * sample_rate)
+
+            buffer = pygame.sndarray.array([4096 * math.sin(2.0 * math.pi * 440.0 * t / sample_rate)
+                                            for t in range(samples)])
+            # Fade out
+            for i in range(samples // 2, samples):
+                buffer[i] *= (samples - i) / (samples // 2)
+
+            sound = pygame.sndarray.make_sound(buffer.astype('int16'))
+            pygame.mixer.Sound.save(sound, jump_sound_path)
+            jump_sound = sound
+        else:
+            jump_sound = pygame.mixer.Sound(jump_sound_path)
+
+        # Game over sound
+        game_over_sound_path = os.path.join(assets_dir, "game_over.wav")
+        if not os.path.exists(game_over_sound_path):
+            # Create a descending tone
+            sample_rate = 44100
+            duration = 0.5  # seconds
+            samples = int(duration * sample_rate)
+
+            buffer = pygame.sndarray.array([4096 * math.sin(2.0 * math.pi * (440.0 - t/samples*200) * t / sample_rate)
+                                            for t in range(samples)])
+            # Add some noise at the end
+            for i in range(samples // 2, samples):
+                buffer[i] = buffer[i] * 0.7 + random.randint(-2048, 2048) * 0.3
+
+            sound = pygame.sndarray.make_sound(buffer.astype('int16'))
+            pygame.mixer.Sound.save(sound, game_over_sound_path)
+            game_over_sound = sound
+        else:
+            game_over_sound = pygame.mixer.Sound(game_over_sound_path)
+
+        # Point sound
+        point_sound_path = os.path.join(assets_dir, "point.wav")
+        if not os.path.exists(point_sound_path):
+            # Create a simple ding sound
+            sample_rate = 44100
+            duration = 0.1  # seconds
+            samples = int(duration * sample_rate)
+
+            buffer = pygame.sndarray.array([4096 * math.sin(2.0 * math.pi * 880.0 * t / sample_rate)
+                                            for t in range(samples)])
+            # Fade out
+            for i in range(samples // 2, samples):
+                buffer[i] *= (samples - i) / (samples // 2)
+
+            sound = pygame.sndarray.make_sound(buffer.astype('int16'))
+            pygame.mixer.Sound.save(sound, point_sound_path)
+            point_sound = sound
+        else:
+            point_sound = pygame.mixer.Sound(point_sound_path)
+
+        return jump_sound, game_over_sound, point_sound
+    except:
+        print("Error creating sound effects")
+        return None, None, None
+
+# Create game assets
+dino_run_imgs, dino_duck_imgs, dino_jump_img, dino_dead_img = create_dino_images()
+cactus_imgs = create_cactus_images()
+bird_imgs = create_bird_images()
+cloud_img = create_cloud_image()
+ground_imgs = create_ground_images()
+powerup_img = create_powerup_image()
+
+# Load or create sounds
+try:
+    jump_sound, game_over_sound, point_sound = create_sound_effects()
+except:
+    # Fallback if sound creation fails
+    jump_sound = game_over_sound = point_sound = None
+
+class Dino(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.run_imgs = dino_run_imgs
+        self.duck_imgs = dino_duck_imgs
+        self.jump_img = dino_jump_img
+        self.dead_img = dino_dead_img
+
+        self.ducking = False
+        self.running = True
+        self.jumping = False
+        self.dead = False
+        self.invincible = False
+        self.invincible_timer = 0
+        self.blink_counter = 0
+
+        self.step_index = 0
+        self.jump_vel = JUMP_FORCE
+        self.image = self.run_imgs[0]
+        self.rect = self.image.get_rect()
+        self.rect.bottom = GROUND_HEIGHT
+        self.rect.left = 50
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self, user_input):
+        if self.dead:
+            self.image = self.dead_img
+            return
+
+        if self.running:
+            self.run()
+        if self.ducking:
+            self.duck()
+        if self.jumping:
+            self.jump()
+
+        if self.step_index >= 10:
+            self.step_index = 0
+
+        if (user_input[pygame.K_UP] or user_input[pygame.K_SPACE]) and not self.jumping:
+            self.jumping = True
+            self.running = False
+            self.ducking = False
+            if jump_sound:
+                jump_sound.play()
+        elif user_input[pygame.K_DOWN] and not self.jumping:
+            self.ducking = True
+            self.running = False
+            self.jumping = False
+        elif not (user_input[pygame.K_DOWN] or self.jumping):
+            self.running = True
+            self.ducking = False
+            self.jumping = False
+
+        # Handle invincibility (after respawn)
+        if self.invincible:
+            self.invincible_timer += 1
+            self.blink_counter += 1
+
+            # Blink effect
+            if self.blink_counter > 5:
+                self.blink_counter = 0
+
+            # End invincibility after 2 seconds (120 frames)
+            if self.invincible_timer > 120:
+                self.invincible = False
+                self.invincible_timer = 0
+
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def run(self):
+        self.image = self.run_imgs[self.step_index // 5]
+        self.rect = self.image.get_rect()
+        self.rect.bottom = GROUND_HEIGHT
+        self.rect.left = 50
+        self.step_index += 1
+
+    def duck(self):
+        self.image = self.duck_imgs[self.step_index // 5]
+        self.rect = self.image.get_rect()
+        self.rect.bottom = GROUND_HEIGHT
+        self.rect.left = 50
+        self.step_index += 1
+
+    def jump(self):
+        self.image = self.jump_img
+        if self.jumping:
+            self.rect.y -= self.jump_vel
+            self.jump_vel -= GRAVITY
+
+        if self.jump_vel < -JUMP_FORCE:
+            self.jumping = False
+            self.jump_vel = JUMP_FORCE
+            self.rect.bottom = GROUND_HEIGHT
+
+    def draw(self, screen):
+        # Don't draw during some frames when invincible (blinking effect)
+        if self.invincible and self.blink_counter > 3:
+            return
+        screen.blit(self.image, self.rect)
+
+class Obstacle(pygame.sprite.Sprite):
+    def __init__(self, image, obstacle_type):
+        super().__init__()
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect.bottom = GROUND_HEIGHT
+        self.rect.left = SCREEN_WIDTH
+        self.type = obstacle_type
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self, game_speed):
+        self.rect.x -= game_speed
+        if self.rect.right < 0:
+            self.kill()
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+class Cactus(Obstacle):
+    def __init__(self):
+        self.type = random.randint(0, 2)
+        super().__init__(cactus_imgs[self.type], "cactus")
+
+class Bird(Obstacle):
+    def __init__(self):
+        self.bird_height = [GROUND_HEIGHT - 50, GROUND_HEIGHT - 100, GROUND_HEIGHT - 30]
+        self.index = 0
+        super().__init__(bird_imgs[self.index], "bird")
+        self.rect.bottom = self.bird_height[random.randint(0, 2)]
+
+    def update(self, game_speed):
+        self.rect.x -= game_speed
+        if self.rect.right < 0:
+            self.kill()
+
+        # Bird animation
+        if self.index >= 9:
+            self.index = 0
+        self.image = bird_imgs[self.index // 5]
+        self.index += 1
+        self.mask = pygame.mask.from_surface(self.image)
+
+class Cloud(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = cloud_img
+        self.rect = self.image.get_rect()
+        self.rect.y = random.randint(50, 100)
+        self.rect.x = SCREEN_WIDTH
+
+    def update(self, game_speed):
+        self.rect.x -= game_speed // 2  # Clouds move slower than obstacles
+        if self.rect.right < 0:
+            self.kill()
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+class Ground(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = ground_imgs[random.randint(0, 1)]
+        self.rect = self.image.get_rect()
+        self.rect.bottom = GROUND_HEIGHT + 5
+        self.rect.x = random.randint(0, SCREEN_WIDTH)
+
+    def update(self, game_speed):
+        self.rect.x -= game_speed
+        if self.rect.right < 0:
+            self.rect.left = SCREEN_WIDTH
+            self.image = ground_imgs[random.randint(0, 1)]
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+class PowerUp(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = powerup_img
+        self.rect = self.image.get_rect()
+        self.rect.bottom = GROUND_HEIGHT - random.randint(20, 100)  # Random height
+        self.rect.left = SCREEN_WIDTH
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self, game_speed):
+        self.rect.x -= game_speed
+        if self.rect.right < 0:
+            self.kill()
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+def main():
+    # Create sprite groups
+    all_sprites = pygame.sprite.Group()
+    obstacle_group = pygame.sprite.Group()
+    cloud_group = pygame.sprite.Group()
+    ground_group = pygame.sprite.Group()
+    powerup_group = pygame.sprite.Group()
+
+    # Create the dino
+    dino = Dino()
+    all_sprites.add(dino)
+
+    # Create ground elements
+    for _ in range(10):
+        ground = Ground()
+        ground_group.add(ground)
+        all_sprites.add(ground)
+
+    # Game variables
+    score = 0
+    high_score = 0
+    game_speed = INITIAL_GAME_SPEED
+    obstacle_timer = 0
+    cloud_timer = 0
+    powerup_timer = 0
+    game_over = False
+    night_mode = False
+    night_timer = 0
+    lives = 3
+
+    # Create font objects
+    font_small = pygame.font.SysFont(None, 24)
+    font_medium = pygame.font.SysFont(None, 30)
+    font_large = pygame.font.SysFont(None, 50)
+
+    # Main game loop
+    while True:
+        # Get user input
+        user_input = pygame.key.get_pressed()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if (event.key == pygame.K_SPACE or event.key == pygame.K_UP) and game_over:
+                    # Restart game
+                    main()
+                if event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+                if event.key == pygame.K_p:  # Pause game
+                    paused = True
+                    pause_text = font_large.render("PAUSED", True, BLACK)
+                    pause_rect = pause_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+                    continue_text = font_medium.render("Press P to continue", True, BLACK)
+                    continue_rect = continue_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 40))
+
+                    while paused:
+                        screen.blit(pause_text, pause_rect)
+                        screen.blit(continue_text, continue_rect)
+                        pygame.display.flip()
+
+                        for pause_event in pygame.event.get():
+                            if pause_event.type == pygame.QUIT:
+                                pygame.quit()
+                                sys.exit()
+                            if pause_event.type == pygame.KEYDOWN and pause_event.key == pygame.K_p:
+                                paused = False
+
+        # Set background color based on day/night cycle
+        background_color = GRAY if night_mode else WHITE
+        screen.fill(background_color)
+
+        # Draw ground line
+        pygame.draw.line(screen, BLACK, (0, GROUND_HEIGHT), (SCREEN_WIDTH, GROUND_HEIGHT), 2)
+
+        if not game_over:
+            # Update dino
+            dino.update(user_input)
+
+            # Spawn clouds
+            cloud_timer += 1
+            if cloud_timer > random.randint(75, 150):
+                cloud = Cloud()
+                cloud_group.add(cloud)
+                all_sprites.add(cloud)
+                cloud_timer = 0
+
+            # Spawn obstacles
+            obstacle_timer += 1
+            if obstacle_timer > random.randint(50, 150):
+                # Randomly choose between cactus and bird
+                if random.randint(0, 10) > 2 or score < 500:  # More cacti at the beginning
+                    obstacle = Cactus()
+                else:
+                    obstacle = Bird()
+
+                obstacle_group.add(obstacle)
+                all_sprites.add(obstacle)
+                obstacle_timer = 0
+
+            # Spawn power-ups (rarely)
+            powerup_timer += 1
+            if powerup_timer > random.randint(500, 1000):  # Much less frequent than obstacles
+                powerup = PowerUp()
+                powerup_group.add(powerup)
+                all_sprites.add(powerup)
+                powerup_timer = 0
+
+            # Update sprites
+            for sprite in all_sprites:
+                if isinstance(sprite, (Obstacle, Cloud, Ground, PowerUp)):
+                    sprite.update(game_speed)
+                sprite.draw(screen)
+
+            # Check for collisions with obstacles
+            if not dino.invincible:
+                for obstacle in obstacle_group:
+                    if pygame.sprite.collide_mask(dino, obstacle):
+                        if lives > 1:
+                            # Lose a life but continue
+                            lives -= 1
+                            dino.invincible = True  # Brief invincibility after hit
+                            obstacle.kill()  # Remove the obstacle that hit the player
+                            if game_over_sound:
+                                game_over_sound.play()
+                        else:
+                            # Game over
+                            dino.dead = True
+                            game_over = True
+                            if game_over_sound:
+                                game_over_sound.play()
+
+            # Check for power-up collection
+            for powerup in powerup_group:
+                if pygame.sprite.collide_mask(dino, powerup):
+                    # Add an extra life (max 5)
+                    if lives < 5:
+                        lives += 1
+                    powerup.kill()
+                    if point_sound:
+                        point_sound.play()
+
+            # Increase score and game speed
+            score += 0.5
+            if int(score) % 100 == 0 and int(score) > 0 and int(score) % 100 == 0:
+                game_speed += 0.5
+                if point_sound:
+                    point_sound.play()
+
+            # Day/night cycle
+            night_timer += 1
+            if night_timer > 1000:  # Switch every ~15 seconds
+                night_mode = not night_mode
+                night_timer = 0
+
+            # Update high score
+            if score > high_score:
+                high_score = score
+        else:
+            # Game over state
+            game_over_text = font_large.render("GAME OVER", True, BLACK)
+            restart_text = font_medium.render("Press SPACE to restart or Q to quit", True, BLACK)
+
+            screen.blit(game_over_text, (SCREEN_WIDTH // 2 - 120, SCREEN_HEIGHT // 2 - 30))
+            screen.blit(restart_text, (SCREEN_WIDTH // 2 - 180, SCREEN_HEIGHT // 2 + 20))
+
+            # Draw the dead dino
+            dino.draw(screen)
+
+            # Draw ground elements
+            for ground in ground_group:
+                ground.draw(screen)
+
+        # Draw score
+        score_text = font_small.render(f"Score: {int(score)}", True, BLACK)
+        high_score_text = font_small.render(f"High Score: {int(high_score)}", True, BLACK)
+        screen.blit(score_text, (SCREEN_WIDTH - 150, 20))
+        screen.blit(high_score_text, (SCREEN_WIDTH - 150, 50))
+
+        # Draw lives
+        lives_text = font_small.render(f"Lives: {lives}", True, BLACK)
+        screen.blit(lives_text, (20, 20))
+
+        # Draw heart icons for lives
+        for i in range(lives):
+            # Draw a simple heart
+            heart_pos = (90 + i * 25, 20)
+            pygame.draw.circle(screen, RED, (heart_pos[0] - 5, heart_pos[1] + 5), 7)
+            pygame.draw.circle(screen, RED, (heart_pos[0] + 5, heart_pos[1] + 5), 7)
+            pygame.draw.polygon(screen, RED, [(heart_pos[0] - 10, heart_pos[1] + 5),
+                                              (heart_pos[0], heart_pos[1] + 15),
+                                              (heart_pos[0] + 10, heart_pos[1] + 5)])
+
+        pygame.display.flip()
+        clock.tick(60)
+
+if __name__ == "__main__":
+    main()
